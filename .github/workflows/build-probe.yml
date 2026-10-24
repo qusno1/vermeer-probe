@@ -1,0 +1,117 @@
+name: Build Vermeer probe firmware
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "probe/**"
+      - "tools/**"
+      - "dtb/**"
+      - ".github/workflows/build-probe.yml"
+
+permissions:
+  contents: write
+
+env:
+  UPSTREAM_REPO: https://github.com/yyx2025/uefi-vermeer.git
+  UPSTREAM_TAG: vermeer-zh-v2
+  UPSTREAM_COMMIT: 05e5980445e0da43aec5c1c042bd8f966f2dbffd
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out the probe scaffold
+        uses: actions/checkout@v4
+
+      - name: Clone the pinned uefi-vermeer release
+        run: |
+          git clone --depth 1 --branch "$UPSTREAM_TAG" "$UPSTREAM_REPO" uefi
+          test "$(git -C uefi rev-parse HEAD)" = "$UPSTREAM_COMMIT"
+          git -C uefi submodule update --init --recursive --depth 1 || \
+            git -C uefi submodule update --init --recursive
+
+      - name: Install host packages
+        run: |
+          sudo apt-get update
+          cd uefi
+          CI_BUILD=false bash setup_env.sh -p apt
+
+      - name: Prepare the probe package
+        run: python3 tools/prepare_probe.py --uefi uefi
+
+      - name: Build the probe firmware
+        working-directory: uefi
+        run: |
+          export CLANGPDB_AARCH64_PREFIX=aarch64-linux-gnu-
+          python3 build_uefi.py -d vermeerProbe -r DEBUG -c -m 0
+
+      - name: Verify the boot image and the compiled modules
+        run: python3 tools/verify_boot_image.py uefi/Mu-vermeerProbe.img --uefi uefi
+
+      - name: Create checksums and build information
+        run: |
+          # Put the image at the artifact/release root, not under uefi/.
+          cp uefi/Mu-vermeerProbe.img Mu-vermeerProbe.img
+          sha256sum Mu-vermeerProbe.img > SHA256SUMS.txt
+
+          {
+            echo "repo: $GITHUB_REPOSITORY"
+            echo "run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "upstream: $UPSTREAM_REPO"
+            echo "upstream tag: $UPSTREAM_TAG"
+            echo "upstream commit: $UPSTREAM_COMMIT"
+            echo "image: Mu-vermeerProbe.img"
+            echo "sha256: $(sha256sum Mu-vermeerProbe.img | cut -d' ' -f1)"
+            echo "built: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } > build-info.txt
+
+          cat SHA256SUMS.txt
+          cat build-info.txt
+
+      - name: Upload the probe image
+        uses: actions/upload-artifact@v4
+        with:
+          name: vermeer-probe-${{ github.run_number }}
+          path: |
+            Mu-vermeerProbe.img
+            SHA256SUMS.txt
+            build-info.txt
+          if-no-files-found: error
+          compression-level: 0
+          # A re-run uses the same run number; replace the previous artifact.
+          overwrite: true
+
+      - name: Publish a release for manual runs
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "Vermeer (Redmi K70) hardware probe firmware."
+            echo
+            echo "- upstream: \`$UPSTREAM_REPO\` at \`$UPSTREAM_COMMIT\`"
+            echo "- image: \`Mu-vermeerProbe.img\`"
+            echo "- SHA-256: \`$(sha256sum Mu-vermeerProbe.img | cut -d' ' -f1)\`"
+            echo
+            echo "This image is loaded with \`fastboot boot\`; it does not write any partition."
+            echo "It prints EL/MIDR/MPIDR/AFF/CNTFRQ/MMFR0/PFR0, the GOP mode and the"
+            echo "largest UEFI conventional-memory window, then waits up to 300 seconds"
+            echo "for a key. Power + Volume Down returns to fastboot."
+          } > release-notes.md
+
+          # A re-run of the same workflow has the same run number; replace the
+          # old release instead of failing on an existing tag.
+          if gh release view "probe-${GITHUB_RUN_NUMBER}" >/dev/null 2>&1; then
+            gh release delete "probe-${GITHUB_RUN_NUMBER}" --yes --cleanup-tag
+          fi
+
+          gh release create "probe-${GITHUB_RUN_NUMBER}" \
+            Mu-vermeerProbe.img \
+            SHA256SUMS.txt \
+            build-info.txt \
+            --title "Vermeer probe ${GITHUB_RUN_NUMBER}" \
+            --notes-file release-notes.md
