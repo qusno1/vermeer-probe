@@ -228,10 +228,10 @@ python make_vermeer_adt.py `
   `vermeerProbePkg`；
 - 从 DSC/FDF 删除 `UniXNUPkg`、`UniXNULib`、`DarwinBootPkg` 引用，
   这样 CI 不需要再检出 UniXNU；
-- 修正 `build_uefi.py` 的参数传递：上游用真值判断，`base = 0` /
-  `header_version = 0` 会被丢掉，mkbootimg 退回 `base 0x10000000`，
-  内核地址变成 `0x10008000`；改成 `value is not None` 后才与
-  G1 镜像的 `0x00008000` 一致；
+- 修正 `build_uefi.py` 的两处打包问题：`argument_map` 里没有 `pagesize`，
+  mkbootimg 会退回 2048；参数又用真值判断，`base = 0` / `header_version = 0`
+  被丢掉。补上 `pagesize` 并改成 `value is not None` 后，头部才是
+  `0x00008000 / 0x01e00000 / 4096 / v0`，与 G1 镜像一致；
 - `VERMEER_CHINESE_UI = 0`，避免中文 UI 与探针抢 BootOrder；
 - 加入 `VermeerProbeDxe`（注册 `Boot####`）和 `VermeerProbe`
   （UEFI 应用）；

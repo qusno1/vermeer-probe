@@ -234,23 +234,37 @@ def patch_device_build(path: Path) -> None:
 def patch_build_script(path: Path) -> None:
     text = read_text(path)
 
+    # Upstream also forgets to forward "pagesize" to mkbootimg, which then
+    # falls back to 2048 while the vermeer bootloader and the working G1 image
+    # use 4096.
+    text = replace_once(
+        text,
+        '        "os_version":     "--os_version",\n'
+        '        "ramdisk_offset": "--ramdisk_offset",\n',
+        '        "os_version":     "--os_version",\n'
+        '        "pagesize":       "--pagesize",\n'
+        '        "ramdisk_offset": "--ramdisk_offset",\n',
+        "pagesize argument",
+    )
+
     # Upstream only passes an image argument when it is truthy, which silently
     # drops "base = 0" and "header_version = 0". mkbootimg then falls back to
     # base 0x10000000, so the payload would be loaded at 0x10008000 instead of
     # the vermeer address 0x00008000 used by the working boot image.
-    old = (
+    text = replace_once(
+        text,
         "        if value:\n"
         "            cmd.append (option)\n"
-        "            cmd.append (str (value))\n"
-    )
-    new = (
+        "            cmd.append (str (value))\n",
         "        # Zero is meaningful here (base 0, header_version 0); pass it\n"
         "        # explicitly so the vermeer boot header layout is kept.\n"
         "        if value is not None:\n"
         "            cmd.append (option)\n"
-        "            cmd.append (str (value))\n"
+        "            cmd.append (str (value))\n",
+        "boot image argument map",
     )
-    write_text(path, replace_once(text, old, new, "boot image argument map"))
+
+    write_text(path, text)
 
 
 def install_probe(scaffold: Path, destination: Path) -> None:
