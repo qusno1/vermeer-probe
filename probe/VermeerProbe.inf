@@ -1,0 +1,34 @@
+## @file
+#  Redmi K70 (vermeer) hardware probe (UEFI application).
+#
+#  Reads CPU registers, the GOP mode and the UEFI memory map, prints the values
+#  through the platform's DEBUG console and waits for a key. It is registered by
+#  VermeerProbeDxe as a Boot#### option.
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = VermeerProbe
+  FILE_GUID                      = 7F3C2A91-5B4D-4E68-9A10-6C2D8E4F1B37
+  MODULE_TYPE                    = UEFI_APPLICATION
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = VermeerProbeEntry
+
+[Sources]
+  VermeerProbe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+
+[LibraryClasses]
+  BaseLib
+  DebugLib
+  MemoryAllocationLib
+  UefiApplicationEntryPoint
+  UefiBootServicesTableLib
+  UefiLib
+
+[Protocols]
+  gEfiGraphicsOutputProtocolGuid                ## CONSUMES

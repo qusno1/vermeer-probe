@@ -1,0 +1,46 @@
+## @file
+#  Boot-option registrar for the Redmi K70 (vermeer) hardware probe.
+#
+#  Writes a Boot#### variable whose device path points at VermeerProbe.inf in
+#  the same FV, then puts that option at the front of BootOrder. BDS runs the
+#  probe application like any other boot option.
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = VermeerProbeDxe
+  FILE_GUID                      = C4E8A1D2-3B57-4F69-8A0C-1D2E3F4A5B6C
+  MODULE_TYPE                    = DXE_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = VermeerProbeDxeEntry
+
+[Sources]
+  VermeerProbeDxe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+
+[LibraryClasses]
+  BaseLib
+  BaseMemoryLib
+  DebugLib
+  DevicePathLib
+  MemoryAllocationLib
+  PrintLib
+  UefiBootServicesTableLib
+  UefiDriverEntryPoint
+  UefiLib
+  UefiRuntimeServicesTableLib
+
+[Guids]
+  gEfiGlobalVariableGuid                        ## PRODUCES ## Variable:L"Boot####" L"BootOrder"
+
+[Protocols]
+  gEfiFirmwareVolume2ProtocolGuid               ## CONSUMES
+  gEfiLoadedImageProtocolGuid                   ## CONSUMES
+  gEfiDevicePathProtocolGuid                    ## CONSUMES
+
+[Depex]
+  gEfiVariableArchProtocolGuid AND gEfiVariableWriteArchProtocolGuid
