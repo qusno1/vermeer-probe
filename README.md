@@ -228,6 +228,10 @@ python make_vermeer_adt.py `
   `vermeerProbePkg`；
 - 从 DSC/FDF 删除 `UniXNUPkg`、`UniXNULib`、`DarwinBootPkg` 引用，
   这样 CI 不需要再检出 UniXNU；
+- 修正 `build_uefi.py` 的参数传递：上游用真值判断，`base = 0` /
+  `header_version = 0` 会被丢掉，mkbootimg 退回 `base 0x10000000`，
+  内核地址变成 `0x10008000`；改成 `value is not None` 后才与
+  G1 镜像的 `0x00008000` 一致；
 - `VERMEER_CHINESE_UI = 0`，避免中文 UI 与探针抢 BootOrder；
 - 加入 `VermeerProbeDxe`（注册 `Boot####`）和 `VermeerProbe`
   （UEFI 应用）；
@@ -273,6 +277,7 @@ DEPEX 是变量服务，所以 DXE 会在 BDS 架构协议安装之前派发它�
 | `setup_env.sh` 失败 | 多为 apt/网络问题，重跑 workflow。 |
 | `build_uefi.py` 失败 | 下载该 run 的日志；重点看 `DeviceBuild.py` 的 `stuart` 输出。 |
 | `verify_boot_image.py` 失败 | 镜像结构不对，**不要**拿去 `fastboot boot`；把报错发回来。 |
+| 报 `page size is 4096 (got ...)` | 日志上方的 `header words` 就是镜像真实头部：`got 2048` 说明 `--pagesize` 没传，`got 0` 说明写成了 v3 头。把这段贴回来。 |
 | `fastboot boot` 后黑屏 | 先确认预编译中文 UI 镜像仍能亮屏；再重跑探针。黑屏但设备有反应时，长按电源回 Android。 |
 | 只有固件 DEBUG 文本，没有探针 | 应用可能没被 BDS 启动。看屏幕里有没有 `VermeerProbeDxe: Boot#### first`。 |
 | `VermeerProbeDxe: probe application not found` | FDF 没把应用放进 FV，或 FILE_GUID 不匹配。检查 `prepare_probe.py` 是否完整执行。 |

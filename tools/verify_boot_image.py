@@ -52,14 +52,21 @@ def verify_image(path: Path) -> None:
     page_size = u32(data, 36)
     header_version = u32(data, 40)
 
-    check(page_size == PAGE_SIZE, f"page size is {PAGE_SIZE}")
-    check(header_version == 0, "boot header is v0")
-    check(kernel_addr == 0x8000, "kernel address is 0x00008000")
-    check(tags_addr == 0x1E00000, "tags address is 0x01e00000")
-    check(ramdisk_size == 0, "ramdisk_size is 0")
-    check(second_size == 0, "second_size is 0")
-    check(ramdisk_addr == 0, "ramdisk address is 0 (unused)")
-    check(second_addr == 0, "second address is 0 (unused)")
+    # Always show the raw words: a failing check must report what mkbootimg
+    # actually wrote, not only what this verifier expected.
+    print("header words:")
+    for offset in range(0, 48, 4):
+        print(f"  +0x{offset:02x}  0x{u32(data, offset):08x}")
+    print()
+
+    check(page_size == PAGE_SIZE, f"page size is {PAGE_SIZE} (got {page_size})")
+    check(header_version == 0, f"boot header is v0 (got v{header_version})")
+    check(kernel_addr == 0x8000, f"kernel address is 0x00008000 (got 0x{kernel_addr:08x})")
+    check(tags_addr == 0x1E00000, f"tags address is 0x01e00000 (got 0x{tags_addr:08x})")
+    check(ramdisk_size == 0, f"ramdisk_size is 0 (got {ramdisk_size})")
+    check(second_size == 0, f"second_size is 0 (got {second_size})")
+    check(ramdisk_addr == 0, f"ramdisk address is 0 (got 0x{ramdisk_addr:08x})")
+    check(second_addr == 0, f"second address is 0 (got 0x{second_addr:08x})")
 
     kernel = data[page_size:page_size + kernel_size]
     check(len(kernel) == kernel_size, f"kernel payload is {kernel_size} bytes")
@@ -68,7 +75,10 @@ def verify_image(path: Path) -> None:
     check(len(data) == expected_size, f"file size is {expected_size} bytes")
 
     decompressor = zlib.decompressobj(16 + zlib.MAX_WBITS)
-    payload = decompressor.decompress(kernel) + decompressor.flush()
+    try:
+        payload = decompressor.decompress(kernel) + decompressor.flush()
+    except zlib.error as error:
+        raise SystemExit(f"FAIL: kernel payload is not gzip: {error}")
     rest = decompressor.unused_data
     check(len(payload) > FD_SIZE, "gzip payload is larger than the FD")
 

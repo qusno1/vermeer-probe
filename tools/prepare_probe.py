@@ -231,6 +231,28 @@ def patch_device_build(path: Path) -> None:
     write_text(path, text)
 
 
+def patch_build_script(path: Path) -> None:
+    text = read_text(path)
+
+    # Upstream only passes an image argument when it is truthy, which silently
+    # drops "base = 0" and "header_version = 0". mkbootimg then falls back to
+    # base 0x10000000, so the payload would be loaded at 0x10008000 instead of
+    # the vermeer address 0x00008000 used by the working boot image.
+    old = (
+        "        if value:\n"
+        "            cmd.append (option)\n"
+        "            cmd.append (str (value))\n"
+    )
+    new = (
+        "        # Zero is meaningful here (base 0, header_version 0); pass it\n"
+        "        # explicitly so the vermeer boot header layout is kept.\n"
+        "        if value is not None:\n"
+        "            cmd.append (option)\n"
+        "            cmd.append (str (value))\n"
+    )
+    write_text(path, replace_once(text, old, new, "boot image argument map"))
+
+
 def install_probe(scaffold: Path, destination: Path) -> None:
     source = scaffold / "probe"
     target = destination / "Drivers/VermeerProbe"
@@ -328,6 +350,7 @@ def main() -> None:
     patch_fdf(fdf)
     patch_dxe_inc(destination / "Include/DXE.inc")
     patch_device_build(destination / "DeviceBuild.py")
+    patch_build_script(root / "build_uefi.py")
     install_probe(scaffold, destination)
     install_dtb(scaffold, root)
     install_config(root)
